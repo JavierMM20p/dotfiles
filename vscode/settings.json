@@ -1,0 +1,14 @@
+{
+    "claudeCode.preferredLocation": "panel",
+    "claudeCode.selectedModel": "opus",
+    "claudeCode.initialPermissionMode": "bypassPermissions",
+    "claudeCode.allowDangerouslySkipPermissions": true,
+    "workflowManager.specChat.provider": "codex",
+    "workflowManager.specChat.model": "gpt-5.4",
+    "belt.specChat.provider": "codex",
+    "belt.specChat.model": "gpt-5.4",
+    "workbench.editorAssociations": {
+        "*.csv": "csv.editor"
+    },
+    "workbench.colorTheme": "Spinel"
+}

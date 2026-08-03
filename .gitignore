@@ -1,0 +1,13 @@
+# Machine-local VS Code state — never sync these.
+globalStorage/
+workspaceStorage/
+History/
+*.vsix
+
+# Backups created by install.sh
+.config-backup-*/
+
+# OS noise
+.DS_Store
+Thumbs.db
+*~
