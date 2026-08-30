@@ -10,5 +10,9 @@
     "workbench.editorAssociations": {
         "*.csv": "csv.editor"
     },
-    "workbench.colorTheme": "Spinel"
+    "workbench.colorTheme": "JetBrains Darcula Theme",
+    "workbench.iconTheme": "vscode-jetbrains-icon-theme",
+    "chat.disableAIFeatures": true,
+    "editor.fontFamily": "'JetBrains Mono', monospace",
+    "editor.fontLigatures": true
 }

@@ -1,16 +1,15 @@
 # VS Code extensions — one ID per line.
-# Regenerate with: ./scripts/backup.sh
-# Install with:    ./scripts/install.sh
+# Regenerate with: ./scripts/backup.sh vscode
+# Install with:    ./scripts/install.sh vscode
 
-adamviola.parquet-explorer
+anan.jetbrains-darcula-theme
 anthropic.claude-code
+chadalen.vscode-jetbrains-icon-theme
 github.vscode-github-actions
-mechatroner.rainbow-csv
 mermaidchart.vscode-mermaid-chart
 mhutchie.git-graph
 ms-azuretools.vscode-containers
 ms-azuretools.vscode-docker
-ms-playwright.playwright
 ms-python.debugpy
 ms-python.python
 ms-python.vscode-pylance
@@ -24,6 +23,3 @@ ms-vscode-remote.remote-containers
 openai.chatgpt
 repreng.csv
 ritwickdey.liveserver
-shopify.ruby-extensions-pack
-shopify.ruby-lsp
-sorbet.sorbet-vscode-extension
