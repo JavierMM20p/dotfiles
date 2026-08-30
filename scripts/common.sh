@@ -1,7 +1,23 @@
 #!/usr/bin/env bash
-# Shared helpers: locate the VS Code CLI and the User config directory.
+# Shared helpers: the module registry, plus locating machine-specific paths.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Every module this repo knows how to install or back up.
+ALL_MODULES=(vscode zsh kitty fonts)
+
+die() {
+    echo "error: $*" >&2
+    exit 1
+}
+
+is_module() {
+    local candidate="$1"
+    for m in "${ALL_MODULES[@]}"; do
+        [ "$m" = "$candidate" ] && return 0
+    done
+    return 1
+}
 
 # --- VS Code CLI -------------------------------------------------------------
 find_code_cli() {
@@ -24,7 +40,7 @@ find_code_cli() {
     return 1
 }
 
-# --- User config directory ---------------------------------------------------
+# --- VS Code User config directory -------------------------------------------
 # Override with VSCODE_USER_DIR if you use a portable/flatpak/insiders install.
 find_user_dir() {
     if [ -n "${VSCODE_USER_DIR:-}" ]; then
@@ -48,7 +64,47 @@ find_user_dir() {
     return 1
 }
 
-die() {
-    echo "error: $*" >&2
-    exit 1
+xdg_config_home() {
+    echo "${XDG_CONFIG_HOME:-$HOME/.config}"
+}
+
+# --- Module file map ---------------------------------------------------------
+# Prints one "<repo-relative path>\t<absolute path on this machine>" line per
+# file the module owns. Both install.sh and backup.sh walk this, in opposite
+# directions, so a module only ever declares its paths once.
+#
+# `fonts` is deliberately absent: it is a bag of files installed into a font
+# directory, not a set of tracked one-to-one mappings, so install.sh special
+# cases it and backup.sh ignores it.
+module_files() {
+    case "$1" in
+        vscode)
+            local user_dir
+            user_dir="$(find_user_dir)" || return 1
+            printf '%s\t%s\n' \
+                "vscode/settings.json"    "$user_dir/settings.json" \
+                "vscode/keybindings.json" "$user_dir/keybindings.json" \
+                "vscode/snippets"         "$user_dir/snippets"
+            ;;
+        zsh)
+            printf '%s\t%s\n' "zsh/zshrc" "$HOME/.zshrc"
+            ;;
+        kitty)
+            printf '%s\t%s\n' "kitty/kitty.conf" "$(xdg_config_home)/kitty/kitty.conf"
+            ;;
+        fonts)
+            return 0
+            ;;
+        *)
+            die "unknown module: $1"
+            ;;
+    esac
+}
+
+# Human-readable reason a module cannot be resolved on this machine.
+module_unavailable_reason() {
+    case "$1" in
+        vscode) echo "could not find the VS Code User directory — open VS Code once, or set VSCODE_USER_DIR" ;;
+        *)      echo "unavailable on this machine" ;;
+    esac
 }
