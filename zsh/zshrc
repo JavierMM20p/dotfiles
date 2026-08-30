@@ -1,0 +1,119 @@
+# ============================================================
+# ZSH CONFIGURATION
+# ============================================================
+
+
+# ------------------------------------------------------------
+# History
+# ------------------------------------------------------------
+
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=50000
+SAVEHIST=50000
+
+# Share history between terminal tabs/windows
+setopt SHARE_HISTORY
+
+# Don't save duplicate commands repeatedly
+setopt HIST_IGNORE_ALL_DUPS
+setopt HIST_SAVE_NO_DUPS
+setopt HIST_FIND_NO_DUPS
+
+# Don't save commands beginning with a space
+setopt HIST_IGNORE_SPACE
+
+
+# ------------------------------------------------------------
+# Keybindings
+# ------------------------------------------------------------
+
+# Emacs-style command line editing:
+# Ctrl+A, Ctrl+E, Ctrl+W, etc.
+bindkey -e
+
+
+# ------------------------------------------------------------
+# Zsh completion
+# ------------------------------------------------------------
+
+autoload -Uz compinit
+compinit
+
+# Interactive completion menu
+zstyle ':completion:*' menu select
+
+# Make completion case-insensitive
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+
+# Display nicer descriptions
+zstyle ':completion:*:descriptions' format '%F{yellow}-- %d --%f'
+
+# Group completion results
+zstyle ':completion:*' group-name ''
+
+# Add colors to completion output
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+
+
+# ------------------------------------------------------------
+# Useful Zsh behavior
+# ------------------------------------------------------------
+
+# cd by typing the directory name directly
+setopt AUTO_CD
+
+# Correct small command spelling mistakes
+setopt CORRECT
+
+# Better globbing
+setopt EXTENDED_GLOB
+
+
+# ------------------------------------------------------------
+# fzf
+# ------------------------------------------------------------
+
+if [[ -f /usr/share/fzf/shell/key-bindings.zsh ]]; then
+    source /usr/share/fzf/shell/key-bindings.zsh
+fi
+
+
+# ------------------------------------------------------------
+# zoxide
+# ------------------------------------------------------------
+
+if command -v zoxide >/dev/null 2>&1; then
+    eval "$(zoxide init zsh)"
+fi
+
+
+# ------------------------------------------------------------
+# Autosuggestions
+# ------------------------------------------------------------
+
+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=8'
+
+if [[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
+    source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
+
+
+# ------------------------------------------------------------
+# Prompt
+# ------------------------------------------------------------
+
+autoload -U colors && colors
+
+PROMPT='%F{cyan}%n%f %F{blue}%~%f %# '
+
+
+# ------------------------------------------------------------
+# Syntax highlighting
+#
+# IMPORTANT: this should stay near the END of .zshrc.
+# ------------------------------------------------------------
+
+if [[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+    source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+fi
+export PATH="$HOME/.local/bin:$PATH"
