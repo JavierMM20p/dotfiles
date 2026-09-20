@@ -151,7 +151,8 @@ class LLMTests(unittest.TestCase):
 
     def test_empty_source_removes_all_personal_skills(self):
         self.install()
-        shutil.rmtree(self.repo / "llms/skills/c4-mermaid-diagrams")
+        for skill in (self.repo / "llms/skills").iterdir():
+            shutil.rmtree(skill)
         domain = self.install()
         self.assertTrue(all(list(root.iterdir()) == [] for root in domain.skill_roots))
         self.assertEqual(domain.differences(), [])

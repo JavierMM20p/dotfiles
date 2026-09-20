@@ -145,17 +145,19 @@ service is required.
 ### Shared skills
 
 Add a directory under `skills/` containing `SKILL.md` with `name` and `description`
-YAML frontmatter and the workflow in Markdown. The only bundled skill, `c4-mermaid-diagrams`, generates, reviews, and repairs C4
-architecture diagrams in Mermaid. Use lowercase letters, digits, and hyphens for names (up to
-64 characters); `synced` is reserved by Claude Code.
+YAML frontmatter and the workflow in Markdown. Two skills are bundled:
+`c4-mermaid-diagrams` generates, reviews, and repairs C4 architecture diagrams in
+Mermaid, and `frontend-design` guides visual direction, typography, and layout when
+building or reshaping a user interface. Use lowercase letters, digits, and hyphens
+for names (up to 64 characters); `synced` is reserved by Claude Code.
 
 Keep shared skills portable: prefer ordinary instructions and supporting scripts
 over tool-specific invocation controls, tool names, inline command expansion, or
 subagent metadata. Supporting scripts retain executable bits. Nested symlinks
 inside a skill are rejected; the installer can link the whole skill directory.
 
-Invoke the skill as `$c4-mermaid-diagrams` in Codex or `/c4-mermaid-diagrams` in Claude.
-Automatic discovery still depends on each client's behavior and the task.
+Invoke a skill by name: `$c4-mermaid-diagrams` in Codex, `/c4-mermaid-diagrams` in
+Claude. Automatic discovery still depends on each client's behavior and the task.
 
 After adding, removing, or renaming a skill, install again. Both copy and symlink
 installation remove extra entries and update repository skills. An empty source
