@@ -166,6 +166,9 @@ class Domain:
         claude = Path(os.environ.get("CLAUDE_CONFIG_DIR") or home / ".claude").expanduser().absolute()
         self.settings = {"codex": codex / "config.toml", "claude": claude / "settings.json"}
         self.override = codex / "AGENTS.override.md"
+        self.skill_roots = [home / ".agents/skills", claude / "skills"]
+        self.legacy_skills = codex / "skills"
+        self.skill_names = set()
         self.content = [(self.root / "instructions.md", [codex / "AGENTS.md", claude / "CLAUDE.md"])]
         for skill in sorted((self.root / "skills").iterdir()):
             if not skill.is_dir():
@@ -174,12 +177,25 @@ class Domain:
                 raise ValueError(f"invalid or reserved skill name: {skill.name}")
             if not (skill / "SKILL.md").is_file():
                 raise ValueError(f"missing SKILL.md: {skill}")
-            self.content.append((skill, [home / ".agents/skills" / skill.name, claude / "skills" / skill.name]))
+            self.skill_names.add(skill.name)
+            self.content.append((skill, [root / skill.name for root in self.skill_roots]))
         for source, _ in self.content:
             snapshot(source)
 
+    def extra_skills(self):
+        extras = []
+        for root in [*self.skill_roots, self.legacy_skills]:
+            # Never prune through a directory symlink into an external tree.
+            if root.is_symlink():
+                raise ValueError(f"global skills directory must not be a symlink: {root}")
+            if not root.exists():
+                continue
+            allowed = {".system"} if root == self.legacy_skills else self.skill_names
+            extras.extend(child for child in sorted(root.iterdir()) if child.name not in allowed)
+        return extras
+
     def plan_install(self, symlink):
-        actions = []
+        actions = [("remove", target, None, "not managed by llms/skills") for target in self.extra_skills()]
         for tool, target in self.settings.items():
             current = read_settings(target, tool)
             merged = copy.deepcopy(current)
@@ -202,7 +218,7 @@ class Domain:
         return actions
 
     def differences(self):
-        differences = []
+        differences = [f"{target}: extra global skill entry" for target in self.extra_skills()]
         for tool, target in self.settings.items():
             current = read_settings(target, tool)
             for path, value in leaves(self.native[tool]):
@@ -259,6 +275,8 @@ def apply(repo, actions, dry_run):
                 staged.chmod(mode)
             elif kind == "link":
                 staged.symlink_to(payload, target_is_directory=payload.is_dir())
+            elif kind == "remove":
+                pass
             elif payload.is_dir():
                 shutil.copytree(payload, staged)
             else:
@@ -271,7 +289,8 @@ def apply(repo, actions, dry_run):
                 shutil.move(str(target), old)
                 with (backup / "manifest.jsonl").open("a") as manifest:
                     manifest.write(json.dumps({"original": str(target), "backup": old.name}) + "\n")
-            staged.replace(target)
+            if kind != "remove":
+                staged.replace(target)
     if backup:
         print(f"Previous files saved to: {backup}")
     if not actions:

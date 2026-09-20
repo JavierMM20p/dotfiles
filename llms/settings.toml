@@ -9,3 +9,8 @@ model = "gpt-6-astra"
 
 [claude]
 model = "opus"
+
+[claude.attribution]
+commit = ""
+pr = ""
+sessionUrl = false

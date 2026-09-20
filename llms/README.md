@@ -27,9 +27,13 @@ Installation configures local clients; it does not install the clients or sign i
 `CLAUDE_CONFIG_DIR` overrides the Claude directory. Codex's personal skills remain
 under `~/.agents/skills`, independently of `CODEX_HOME`.
 
-Only individual curated skills are installed. Existing system, plugin, account
-synced, and unrelated personal skills are left in place. Credentials, sessions,
-history, and generated memories are not imported into this repository.
+The repository is authoritative for global personal skills. Installation removes
+entries absent from `llms/skills/` from `~/.agents/skills` and
+`~/.claude/skills`, including account-synced skills. It also clears legacy personal
+skills from `$CODEX_HOME/skills` (default `~/.codex/skills`), preserving only
+Codex's bundled `.system` directory. Plugin-managed skills outside these directories
+are unaffected. Credentials, sessions, history, and generated memories are not
+imported into this repository.
 
 ## Settings
 
@@ -69,9 +73,76 @@ Keep secrets in local configuration or environment variables, not in this source
 
 ## Instructions and skills
 
-`instructions.md` starts blank, ready for your personal guidance in all projects. Project instructions
-can further specialize that guidance. A nonempty Codex `AGENTS.override.md` takes
+### Repository attribution
+
+The shared instructions prohibit assistant and provider attribution in commit
+messages, pull requests, repository descriptions, and repository files. They
+exclude AI co-author trailers, session links, signatures, and generated-by notices,
+while preserving necessary technical references and third-party license notices.
+Existing Git identities and history are preserved.
+
+`settings.toml` also disables Claude Code's native attribution with
+`attribution.commit = ""`, `attribution.pr = ""`, and
+`attribution.sessionUrl = false`; see the
+[Claude Code attribution settings](https://code.claude.com/docs/en/settings-reference#attribution).
+Codex receives the rule through the shared `AGENTS.md`. These are global defaults;
+project or organization configuration can take precedence. Reinstall the LLM
+configuration and restart the clients to load the changes.
+
+### No emojis
+
+The shared instructions prohibit emojis in replies and newly authored content,
+including commits, pull requests, documentation, and code comments. Exact quotations,
+literal output, and data that must remain unchanged are preserved. This rule does
+not authorize removing existing emojis from files.
+
+### Conversational writing and code comments
+
+`instructions.md` contains shared preferences for the assistants' conversational
+replies. The writing guidance applies to explanations, progress updates, questions,
+and summaries, and to prose in comments and docstrings written or edited during a
+task. Comments should be sparse, short, and direct, explaining non-obvious reasons
+or constraints without narrating the code. Required documentation and useful
+technical detail remain intact.
+
+Executable code, literal examples, commands, tool directives, and data are
+excluded from the style pass. The guidance does not authorize unrelated rewrites
+of existing comments or other artifacts. Project instructions can further
+specialize that guidance.
+A nonempty Codex `AGENTS.override.md` takes
 precedence over `AGENTS.md`; `check` reports it so you can reconcile it yourself.
+
+### Humanizer research and adaptation
+
+The writing preferences were informed by
+[blader/humanizer](https://github.com/blader/humanizer), reviewed on 2026-09-20 at
+revision [`9862685`](https://github.com/blader/humanizer/tree/9862685f575c65a8247f90369951df1b3416e3d6)
+(skill version 3.0.0, MIT license). Its behavior is defined in
+[`SKILL.md`](https://github.com/blader/humanizer/blob/9862685f575c65a8247f90369951df1b3416e3d6/SKILL.md):
+the agent identifies writing patterns, drafts a rewrite, checks both style and
+preservation of claims, and produces the final text. It groups 25 patterns around
+staged phrasing, repetitive rhythm, inflated claims, decorative formatting, and
+leftover chatbot language. Its pattern list draws on Wikipedia's "Signs of AI
+writing." The repository also provides agent/plugin metadata and a package
+validation script; the model performs the editing from Markdown instructions.
+
+This setup uses independently worded, shorter guidance in the shared instruction
+file so it applies to ordinary replies without invoking a skill. It keeps the
+clarity and factual-preservation principles, applies them to conversation and
+comment or docstring prose, and makes the review silent. Upstream's default
+pasted-text mode displays a draft, critique, and final rewrite, and its file mode
+can edit prose in files. Those
+behaviors are outside this adaptation. Punctuation and formatting remain choices
+based on readability, with useful technical structure preserved.
+
+These are model instructions, not an output filter or an AI detector. Compliance
+can vary with the model and other active instructions. Restart both clients after
+installing. To spot-check in a new session, request an explanation with a code
+sample and confirm that the prose is direct and the code follows its language and
+project conventions. No Humanizer plugin, runtime dependency, or external editing
+service is required.
+
+### Shared skills
 
 Add a directory under `skills/` containing `SKILL.md` with `name` and `description`
 YAML frontmatter and the workflow in Markdown. The only bundled skill, `c4-mermaid-diagrams`, generates, reviews, and repairs C4
@@ -86,15 +157,20 @@ inside a skill are rejected; the installer can link the whole skill directory.
 Invoke the skill as `$c4-mermaid-diagrams` in Codex or `/c4-mermaid-diagrams` in Claude.
 Automatic discovery still depends on each client's behavior and the task.
 
-After adding a skill, install again. Removing or renaming a source skill does not
-automatically remove old installed copies or links: remove those individual entries
-from both destinations yourself. Entire skills directories are never replaced.
+After adding, removing, or renaming a skill, install again. Both copy and symlink
+installation remove extra entries and update repository skills. An empty source
+skills directory removes all installed personal skills. Removed entries are moved
+to the installation backup, with their original locations recorded in its manifest.
+Use `--dry-run` to preview removals. Global skills directories must be real
+directories; symlinked roots are rejected before changes to avoid pruning an
+external tree. Individual skill symlinks can be replaced or removed safely.
 
 ## Checking and backing up
 
 `python3 scripts/llms.py check` compares managed settings and shared content with
 both installations. Exit status is zero when they match and nonzero for drift,
-missing files, invalid configuration, or a shadowing Codex instruction file.
+missing files, extra global skills, invalid configuration, or a shadowing Codex
+instruction file.
 It checks files, not the effective settings of a running client: project settings,
 CLI flags, model-specific overrides, editor settings, and managed policies may
 still affect behavior.
@@ -114,7 +190,7 @@ still need backup. To preview an export, use:
 python3 scripts/llms.py backup --dry-run
 ```
 
-Replaced files are saved in a gitignored `.config-backup-*-llms-*/` directory, with
+Replaced files and removed skills are saved in a gitignored `.config-backup-*-llms-*/` directory, with
 `manifest.jsonl` recording their original locations. This includes previous source
 files replaced during backup. Repeated installations with unchanged inputs do
 nothing. Preflight catches configuration and content errors before changes; an OS

@@ -55,6 +55,7 @@ class LLMTests(unittest.TestCase):
         self.assertEqual(data["projects"]["/a.b/repo"]["trust_level"], "trusted")
         self.assertEqual(data["mcp_servers"]["demo"]["args"], ["a", "b"])
         self.assertEqual(json.loads(claude.read_text())["env"], {"LOCAL_ONLY": "private"})
+        self.assertEqual(json.loads(claude.read_text())["attribution"], {"commit": "", "pr": "", "sessionUrl": False})
         self.assertEqual(codex.stat().st_mode & 0o777, 0o640)
         self.assertEqual(domain.differences(), [])
         self.assertEqual(domain.plan_install(False), [])
@@ -72,7 +73,7 @@ class LLMTests(unittest.TestCase):
         llms.apply(self.repo, self.domain().plan_install(True), True)
         self.assertEqual(llms.snapshot(self.root), before)
 
-    def test_symlinks_preserve_other_skills_and_settings_are_regular(self):
+    def test_symlinks_remove_other_skills_and_settings_are_regular(self):
         self.write(self.home / ".claude/skills/synced/keep.txt", "account skill")
         self.write(self.home / ".agents/skills/unrelated/SKILL.md", "other skill")
         domain = self.install(True)
@@ -80,14 +81,105 @@ class LLMTests(unittest.TestCase):
             for target in targets:
                 self.assertTrue(target.is_symlink())
                 self.assertEqual(target.resolve(), source.resolve())
-        self.assertTrue((self.home / ".claude/skills/synced/keep.txt").exists())
-        self.assertTrue((self.home / ".agents/skills/unrelated/SKILL.md").exists())
+        self.assertFalse((self.home / ".claude/skills/synced").exists())
+        self.assertFalse((self.home / ".agents/skills/unrelated").exists())
         self.assertTrue(all(not path.is_symlink() for path in domain.settings.values()))
         self.assertEqual(domain.plan_install(True), [])
         self.assertEqual(domain.plan_backup(), [])
         llms.apply(self.repo, domain.plan_install(False), False)
         self.assertEqual(domain.differences(), [])
         self.assertTrue(all(not path.is_symlink() for _, targets in domain.content for path in targets))
+
+    def test_extra_skills_are_reported_removed_and_backed_up(self):
+        domain = self.install()
+        extras = [
+            self.home / ".agents/skills/unrelated",
+            self.home / ".claude/skills/synced",
+            self.home / ".codex/skills/legacy",
+            self.home / ".codex/skills/c4-mermaid-diagrams",
+        ]
+        for extra in extras:
+            self.write(extra / "SKILL.md", f"personal skill: {extra.name}")
+        system = self.home / ".codex/skills/.system/builtin/SKILL.md"
+        self.write(system, "bundled skill")
+        external = self.root / "external"
+        self.write(external / "SKILL.md", "external skill")
+        linked = self.home / ".agents/skills/linked"
+        linked.symlink_to(external, target_is_directory=True)
+        broken = self.home / ".claude/skills/broken"
+        broken.symlink_to(self.root / "missing")
+        extras.extend([linked, broken])
+        differences = domain.differences()
+        self.assertEqual(len(differences), len(extras))
+        for extra in extras:
+            self.assertTrue(any(str(extra) in item for item in differences))
+        actions = domain.plan_install(False)
+        llms.apply(self.repo, actions, True)
+        self.assertTrue(all(path.exists() or path.is_symlink() for path in extras))
+        self.assertEqual(list(self.repo.glob(".config-backup-*")), [])
+        llms.apply(self.repo, actions, False)
+        self.assertTrue(all(not path.exists() and not path.is_symlink() for path in extras))
+        self.assertEqual(system.read_text(), "bundled skill")
+        self.assertEqual((external / "SKILL.md").read_text(), "external skill")
+        manifests = list(self.repo.glob(".config-backup-*/manifest.jsonl"))
+        self.assertEqual(len(manifests), 1)
+        entries = [json.loads(line) for line in manifests[0].read_text().splitlines()]
+        self.assertEqual({entry["original"] for entry in entries}, {str(path) for path in extras})
+        for entry in entries:
+            saved = manifests[0].parent / entry["backup"]
+            if entry["original"] in {str(linked), str(broken)}:
+                self.assertTrue(saved.is_symlink())
+            else:
+                self.assertEqual((saved / "SKILL.md").read_text(), f"personal skill: {Path(entry['original']).name}")
+        self.assertEqual(domain.differences(), [])
+        self.assertEqual(domain.plan_install(False), [])
+
+    def test_removed_source_skill_is_pruned_in_copy_and_symlink_modes(self):
+        for symlink in (False, True):
+            with self.subTest(symlink=symlink):
+                source = self.repo / "llms/skills/temporary"
+                self.write(source / "SKILL.md", "temporary skill")
+                self.install(symlink)
+                shutil.rmtree(source)
+                domain = self.domain()
+                self.assertEqual(len(domain.differences()), 2)
+                self.install(symlink)
+                for root in domain.skill_roots:
+                    self.assertFalse((root / "temporary").exists())
+                    self.assertFalse((root / "temporary").is_symlink())
+                self.assertEqual(domain.differences(), [])
+
+    def test_empty_source_removes_all_personal_skills(self):
+        self.install()
+        shutil.rmtree(self.repo / "llms/skills/c4-mermaid-diagrams")
+        domain = self.install()
+        self.assertTrue(all(list(root.iterdir()) == [] for root in domain.skill_roots))
+        self.assertEqual(domain.differences(), [])
+
+    def test_skill_cleanup_respects_custom_configuration_directories(self):
+        codex = self.home / "custom-codex"
+        claude = self.home / "custom-claude"
+        with patch.dict(os.environ, {"CODEX_HOME": str(codex), "CLAUDE_CONFIG_DIR": str(claude)}):
+            self.write(codex / "skills/extra/SKILL.md", "extra")
+            self.write(claude / "skills/extra/SKILL.md", "extra")
+            self.write(self.home / ".claude/skills/untouched/SKILL.md", "other configuration")
+            domain = self.install()
+            self.assertFalse((codex / "skills/extra").exists())
+            self.assertFalse((claude / "skills/extra").exists())
+            self.assertTrue((claude / "skills/c4-mermaid-diagrams/SKILL.md").is_file())
+            self.assertTrue((self.home / ".claude/skills/untouched/SKILL.md").is_file())
+            self.assertEqual(domain.differences(), [])
+
+    def test_skill_root_symlink_fails_before_changes(self):
+        external = self.root / "external"
+        self.write(external / "extra/SKILL.md", "external skill")
+        root = self.home / ".agents/skills"
+        root.parent.mkdir()
+        root.symlink_to(external, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "must not be a symlink"):
+            self.domain().plan_install(False)
+        self.assertEqual((external / "extra/SKILL.md").read_text(), "external skill")
+        self.assertFalse((self.home / ".codex/config.toml").exists())
 
     def test_backup_conflict_prevents_all_exports(self):
         domain = self.install()
@@ -101,7 +193,9 @@ class LLMTests(unittest.TestCase):
     def test_backup_exports_only_managed_values_and_agreed_content(self):
         domain = self.install()
         self.write(domain.settings["codex"], 'model = "new-model"\nmodel_reasoning_effort = "medium"\nsecret = "stay local"\n')
-        self.write(domain.settings["claude"], '{"model":"opus","effortLevel":"medium","env":{"TOKEN":"stay local"}}')
+        claude = json.loads(domain.settings["claude"].read_text())
+        claude.update({"model": "opus", "effortLevel": "medium", "env": {"TOKEN": "stay local"}})
+        self.write(domain.settings["claude"], json.dumps(claude))
         for _, targets in domain.content:
             for target in targets:
                 if target.is_file():
@@ -206,7 +300,9 @@ name = "two"
 
     def test_native_backup_conflict_cannot_leak_new_settings(self):
         domain = self.install()
-        self.write(domain.settings["claude"], '{"model":null,"effortLevel":"high"}')
+        claude = json.loads(domain.settings["claude"].read_text())
+        claude["model"] = None
+        self.write(domain.settings["claude"], json.dumps(claude))
         before = llms.snapshot(self.repo / "llms")
         with self.assertRaisesRegex(ValueError, "unsupported TOML"):
             domain.plan_backup()

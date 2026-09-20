@@ -116,6 +116,8 @@ python3 scripts/llms.py check
 ```
 
 Settings merge into the native files, preserving unrelated local values.
+Global personal skills are synchronized to `llms/skills/`; extra installed skills
+are removed and backed up, while Codex's bundled system skills are preserved.
 `--symlink` links instructions and individual skills; settings remain regular
 files. Backup refuses conflicting shared edits instead of choosing one tool's
 copy. See [llms/README.md](llms/README.md) for settings mapping, file locations,
