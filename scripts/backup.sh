@@ -6,7 +6,7 @@
 #   ./scripts/backup.sh                every module
 #   ./scripts/backup.sh zsh kitty      only the named modules
 #
-# Modules: vscode zsh kitty   (fonts are vendored by hand, never exported)
+# Modules: vscode zsh kitty llms   (fonts are vendored by hand, never exported)
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -107,6 +107,10 @@ print('\n'.join(sorted({e['identifier']['id'] for e in data})))
 for module in "${MODULES[@]}"; do
     echo
     echo "== $module"
+    if [ "$module" = "llms" ]; then
+        python3 "$REPO_ROOT/scripts/llms.py" backup
+        continue
+    fi
     export_files "$module"
     [ "$module" = "vscode" ] && export_extensions
 done

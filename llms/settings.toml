@@ -1,0 +1,11 @@
+# Shared preferences translated into each tool's native settings.
+[shared]
+reasoning_effort = "high"
+
+# Native settings: add only the keys you want this repository to manage.
+# Permissions and sandboxing are intentionally configured per tool.
+[codex]
+model = "gpt-6-astra"
+
+[claude]
+model = "opus"

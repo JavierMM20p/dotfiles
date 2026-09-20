@@ -20,3 +20,7 @@ zsh/*_history
 .DS_Store
 Thumbs.db
 *~
+
+# --- Python helpers ----------------------------------------------------------
+__pycache__/
+*.pyc

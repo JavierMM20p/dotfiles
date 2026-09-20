@@ -1,6 +1,6 @@
 # dotfiles
 
-My machine setup as code — VS Code, zsh, kitty, and the fonts they ask for.
+My machine setup as code — VS Code, zsh, kitty, fonts, and shared LLM configuration.
 Clone it on a new machine, run one script, get the same environment.
 
 ## Layout
@@ -19,10 +19,12 @@ zsh/
 kitty/
   kitty.conf         -> ~/.config/kitty/kitty.conf
 fonts/               .ttf/.otf files -> ~/.local/share/fonts (~/Library/Fonts on macOS)
+llms/                shared Codex + Claude Code settings, instructions, and skills
 scripts/
   install.sh         repo    -> machine
   backup.sh          machine -> repo
   common.sh          module registry + path autodetection
+  llms.py            merge, check, and export the shared LLM domain
 ```
 
 Files are stored without their leading dot (`zsh/zshrc`, not `zsh/.zshrc`) so they are
@@ -95,6 +97,29 @@ One place to edit: `module_files()` in [scripts/common.sh](scripts/common.sh). A
 name to `ALL_MODULES` and a case branch printing `<repo path>\t<machine path>` per file.
 `install.sh` and `backup.sh` both walk that map, in opposite directions, so neither
 needs to change.
+
+Domains that need merging or multiple destinations, such as `llms`, have a
+dedicated handler in the install and backup scripts.
+
+## Codex and Claude Code
+
+`llms/` provides global settings, one instruction file, and shared skills for both
+tools. It requires Python 3.11+. The initial settings use high reasoning effort
+with `gpt-6-astra` for Codex and `opus` for Claude; existing permission settings
+are preserved.
+
+```bash
+./scripts/install.sh --dry-run llms
+./scripts/install.sh --symlink llms
+python3 scripts/llms.py check
+./scripts/backup.sh llms
+```
+
+Settings merge into the native files, preserving unrelated local values.
+`--symlink` links instructions and individual skills; settings remain regular
+files. Backup refuses conflicting shared edits instead of choosing one tool's
+copy. See [llms/README.md](llms/README.md) for settings mapping, file locations,
+backup behavior, and adding skills.
 
 ## Machine-specific paths
 

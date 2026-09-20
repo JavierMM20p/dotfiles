@@ -4,7 +4,7 @@
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Every module this repo knows how to install or back up.
-ALL_MODULES=(vscode zsh kitty fonts)
+ALL_MODULES=(vscode zsh kitty fonts llms)
 
 die() {
     echo "error: $*" >&2
@@ -73,9 +73,8 @@ xdg_config_home() {
 # file the module owns. Both install.sh and backup.sh walk this, in opposite
 # directions, so a module only ever declares its paths once.
 #
-# `fonts` is deliberately absent: it is a bag of files installed into a font
-# directory, not a set of tracked one-to-one mappings, so install.sh special
-# cases it and backup.sh ignores it.
+# `fonts` is installed specially and never exported. `llms` has its own handler
+# because it merges settings and maps shared content to multiple destinations.
 module_files() {
     case "$1" in
         vscode)
@@ -92,7 +91,7 @@ module_files() {
         kitty)
             printf '%s\t%s\n' "kitty/kitty.conf" "$(xdg_config_home)/kitty/kitty.conf"
             ;;
-        fonts)
+        fonts|llms)
             return 0
             ;;
         *)

@@ -7,7 +7,7 @@
 #   ./scripts/install.sh --no-extensions   skip VS Code extension installation
 #   ./scripts/install.sh --dry-run         show what would happen, change nothing
 #
-# Modules: vscode zsh kitty fonts
+# Modules: vscode zsh kitty fonts llms
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -160,6 +160,12 @@ for module in "${MODULES[@]}"; do
     echo
     echo "== $module"
     case "$module" in
+        llms)
+            llm_args=(install)
+            [ "$MODE" = "symlink" ] && llm_args+=(--symlink)
+            [ "$DRY_RUN" -eq 1 ] && llm_args+=(--dry-run)
+            python3 "$REPO_ROOT/scripts/llms.py" "${llm_args[@]}"
+            ;;
         fonts)
             install_fonts
             ;;
@@ -177,4 +183,4 @@ echo
 if [ "$backed_up" -eq 1 ]; then
     echo "Previous config moved to: $BACKUP_DIR"
 fi
-echo "Done. Restart VS Code / kitty, and 'exec zsh', to pick everything up."
+echo "Done. Restart affected apps (VS Code, kitty, Codex, Claude Code), or 'exec zsh', to pick up changes."
