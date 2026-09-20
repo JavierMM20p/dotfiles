@@ -59,6 +59,20 @@ Pass module names to narrow it down:
 settings as usual, then just `git diff` and commit. Plain copy is safer on machines
 where you want local divergence.
 
+## Kitty pane shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Shift+Arrow` | Create a pane in that direction |
+| `Alt+Shift+Arrow` | Focus the neighboring pane |
+| `Ctrl+Shift+Enter` | Create a split with an automatically chosen direction |
+| `Ctrl+Shift+W` | Close the focused pane |
+
+New panes inherit the current directory. Directional creation uses the default
+`splits` layout. `Ctrl+Shift+Up/Down` replace single-line scrolling; use
+`Ctrl+Shift+PageUp/PageDown` to scroll by pages. Reload configuration in Kitty with
+`Ctrl+Shift+F5`.
+
 ## Save changes back
 
 ```bash
