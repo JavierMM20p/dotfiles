@@ -14,5 +14,9 @@
     "workbench.iconTheme": "vscode-jetbrains-icon-theme",
     "chat.disableAIFeatures": true,
     "editor.fontFamily": "'JetBrains Mono', monospace",
-    "editor.fontLigatures": true
+    "editor.fontLigatures": true,
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "editor.renderWhitespace": "trailing"
 }
