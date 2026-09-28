@@ -16,6 +16,7 @@ vscode/
   extensions.txt     extension IDs, one per line
 zsh/
   zshrc              -> ~/.zshrc
+  prompt.zsh         -> ~/.config/zsh/prompt.zsh
 kitty/
   kitty.conf         -> ~/.config/kitty/kitty.conf
 fonts/               .ttf/.otf files -> ~/.local/share/fonts (~/Library/Fonts on macOS)
@@ -188,6 +189,35 @@ sudo dnf install fzf zsh-autosuggestions zsh-syntax-highlighting zoxide
 
 The syntax-highlighting block must stay last in `zshrc` — it wraps the line editor and
 misses anything defined after it.
+
+## Prompt
+
+`zsh/prompt.zsh` draws a single line:
+
+```
+javier ~/work/api main* (.venv) ❯
+```
+
+| Segment | Shown when |
+| --- | --- |
+| `javier` | always, in cyan |
+| `~/work/api` | always, in bold blue |
+| `main` | inside a git work tree, in magenta |
+| `*` / `+` | unstaged or untracked changes / staged changes |
+| `(merge)`, `(rebase-i)` | a git operation is in progress, in red |
+| `(.venv)` | `$VIRTUAL_ENV` is set, in green |
+| `❯` | always — yellow, or red if the last command failed |
+
+It uses zsh's built-in `vcs_info`, so there is no framework or plugin to install. Oh My
+Zsh would have worked too, but its `lib/` files reset history options, rebind keys, and
+re-run completion setup on load, which would fight the settings already in `zshrc`.
+
+`zshrc` falls back to the old plain prompt if `prompt.zsh` is missing, so the shell still
+comes up on a machine where only `.zshrc` was copied.
+
+Drawing the dirty marker means comparing the work tree against the index on every prompt.
+That is unnoticeable in normal repos and slow in very large ones; set `check-for-changes`
+to `false` in `prompt.zsh` if you hit one.
 
 ## What is deliberately not tracked
 

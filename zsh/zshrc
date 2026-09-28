@@ -102,9 +102,16 @@ fi
 # Prompt
 # ------------------------------------------------------------
 
-autoload -U colors && colors
+_prompt_file="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/prompt.zsh"
 
-PROMPT='%F{cyan}%n%f %F{blue}%~%f %# '
+if [[ -r $_prompt_file ]]; then
+    source "$_prompt_file"
+else
+    autoload -U colors && colors
+    PROMPT='%F{cyan}%n%f %F{blue}%~%f %# '
+fi
+
+unset _prompt_file
 
 
 # ------------------------------------------------------------
@@ -117,3 +124,4 @@ if [[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
     source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 fi
 export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.cargo/bin:$PATH"

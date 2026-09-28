@@ -86,7 +86,9 @@ module_files() {
                 "vscode/snippets"         "$user_dir/snippets"
             ;;
         zsh)
-            printf '%s\t%s\n' "zsh/zshrc" "$HOME/.zshrc"
+            printf '%s\t%s\n' \
+                "zsh/zshrc"      "$HOME/.zshrc" \
+                "zsh/prompt.zsh" "$(xdg_config_home)/zsh/prompt.zsh"
             ;;
         kitty)
             printf '%s\t%s\n' "kitty/kitty.conf" "$(xdg_config_home)/kitty/kitty.conf"
