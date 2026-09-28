@@ -200,8 +200,8 @@ javier ~/work/api main* (.venv) ❯
 
 | Segment | Shown when |
 | --- | --- |
-| `javier` | always, in cyan |
-| `~/work/api` | always, in bold blue |
+| `javier` | always, in blue |
+| `~/work/api` | always, in bold cyan |
 | `main` | inside a git work tree, in magenta |
 | `*` / `+` | unstaged or untracked changes / staged changes |
 | `(merge)`, `(rebase-i)` | a git operation is in progress, in red |

@@ -49,4 +49,4 @@ _prompt_precmd() {
 }
 add-zsh-hook precmd _prompt_precmd
 
-PROMPT='%F{cyan}%n%f %F{blue}%B%~%b%f${vcs_info_msg_0_}${_prompt_venv} %(?.%F{yellow}.%F{red})❯%f '
+PROMPT='%F{blue}%n%f %F{cyan}%B%~%b%f${vcs_info_msg_0_}${_prompt_venv} %(?.%F{yellow}.%F{red})❯%f '

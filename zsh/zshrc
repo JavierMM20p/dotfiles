@@ -108,7 +108,7 @@ if [[ -r $_prompt_file ]]; then
     source "$_prompt_file"
 else
     autoload -U colors && colors
-    PROMPT='%F{cyan}%n%f %F{blue}%~%f %# '
+    PROMPT='%F{blue}%n%f %F{cyan}%~%f %# '
 fi
 
 unset _prompt_file
