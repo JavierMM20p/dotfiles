@@ -186,10 +186,14 @@ service is required.
 ### Shared skills
 
 Add a directory under `skills/` containing `SKILL.md` with `name` and `description`
-YAML frontmatter and the workflow in Markdown. Two skills are bundled:
+YAML frontmatter and the workflow in Markdown. Three skills are bundled:
 `c4-mermaid-diagrams` generates, reviews, and repairs C4 architecture diagrams in
-Mermaid, and `frontend-design` guides visual direction, typography, and layout when
-building or reshaping a user interface. Use lowercase letters, digits, and hyphens
+Mermaid; `frontend-design` guides visual direction, typography, and layout when
+building or reshaping a user interface; and `frontend-scratchpad` offers a browser
+page for comparing design options before a new UI surface is built. The scratchpad
+page is prebuilt, so the model writes only a JSON spec of the options. Pages are
+written to `<system temp>/frontend-scratchpad/` and may be lost on reboot.
+Use lowercase letters, digits, and hyphens
 for names (up to 64 characters); `synced` is reserved by Claude Code.
 
 Keep shared skills portable: prefer ordinary instructions and supporting scripts

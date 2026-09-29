@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scratchpad</title>
+<style>
+  /* The tool chrome stays grayscale and system-styled so it does not color the options. */
+  :root {
+    color-scheme: light dark;
+    --ui-bg: #f2f2f2; --ui-panel: #fafafa; --ui-fg: #1b1b1b; --ui-muted: #6e6e6e;
+    --ui-line: #d6d6d6; --ui-sel: #1b1b1b; --ui-sel-fg: #fafafa; --ui-err: #b00020;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ui-bg: #141414; --ui-panel: #1c1c1c; --ui-fg: #e6e6e6; --ui-muted: #9a9a9a;
+      --ui-line: #363636; --ui-sel: #e6e6e6; --ui-sel-fg: #141414; --ui-err: #ff8a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    display: grid; grid-template-columns: 320px 1fr; overflow: hidden;
+    font: 13px/1.4 system-ui, sans-serif; background: var(--ui-bg); color: var(--ui-fg);
+  }
+  body.no-panel { grid-template-columns: 0 1fr; }
+  body.no-panel #panel { visibility: hidden; }
+  #panel { overflow: auto; border-right: 1px solid var(--ui-line); background: var(--ui-panel); padding: 12px 12px 24px; }
+  #panel h1 { font-size: 14px; margin: 0 0 2px; }
+  #panel .path { color: var(--ui-muted); font-size: 11px; word-break: break-all; margin: 0 0 10px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+  button {
+    font: inherit; color: inherit; background: transparent; border: 1px solid var(--ui-line);
+    border-radius: 4px; padding: 3px 7px; cursor: pointer; text-align: left;
+  }
+  button:hover { border-color: var(--ui-muted); }
+  button[aria-pressed="true"] { background: var(--ui-sel); color: var(--ui-sel-fg); border-color: var(--ui-sel); }
+  button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--ui-fg); outline-offset: 1px; }
+  .group { border-top: 1px solid var(--ui-line); padding: 10px 0; }
+  .group h2 { font-size: 12px; margin: 0 0 6px; display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
+  .group.active h2::before { content: ""; width: 3px; background: var(--ui-fg); margin-right: 6px; }
+  .group h2 span:first-of-type { flex: 1; }
+  .group h2 .count { color: var(--ui-muted); font-weight: normal; }
+  .opts { display: flex; flex-direction: column; gap: 3px; }
+  .opts button { display: flex; gap: 8px; }
+  .opts b { min-width: 1.2em; }
+  .group label { display: flex; gap: 6px; align-items: center; margin-top: 6px; color: var(--ui-muted); }
+  .group.none .opts { opacity: .45; }
+  textarea {
+    width: 100%; margin-top: 6px; font: inherit; color: inherit; background: transparent;
+    border: 1px solid var(--ui-line); border-radius: 4px; padding: 4px 6px; resize: vertical;
+  }
+  footer { border-top: 1px solid var(--ui-line); padding-top: 10px; }
+  #status { margin-left: 8px; color: var(--ui-muted); }
+  #errors { color: var(--ui-err); font-size: 12px; white-space: pre-wrap; margin: 8px 0 0; }
+  #out { height: 140px; font: 11px/1.4 ui-monospace, monospace; }
+  .keys { color: var(--ui-muted); font-size: 11px; }
+  #stage { position: relative; overflow: hidden; }
+  #main { position: absolute; top: 0; border: 0; background: transparent; }
+  #grid { position: absolute; inset: 0; overflow: auto; padding: 12px; display: none; gap: 12px; align-content: start; }
+  body.compare #grid { display: grid; }
+  body.compare #main { display: none; }
+  .cell { position: relative; border: 1px solid var(--ui-line); border-radius: 4px; overflow: hidden; background: var(--ui-panel); }
+  .cell.on { outline: 2px solid var(--ui-fg); }
+  .cell .cap { display: flex; gap: 8px; padding: 4px 8px; border-bottom: 1px solid var(--ui-line); }
+  .cell .view { position: relative; overflow: hidden; }
+  .cell iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; }
+  .cell .hit { position: absolute; inset: 0; cursor: pointer; }
+  #show { position: fixed; left: 8px; bottom: 8px; display: none; background: var(--ui-panel); }
+  body.no-panel #show { display: block; }
+</style>
+</head>
+<body>
+<aside id="panel"></aside>
+<main id="stage"><iframe id="main" title="Preview"></iframe><div id="grid"></div></main>
+<button id="show" type="button">Show panel (P)</button>
+<script>
+// A preview that navigates would otherwise load this whole page inside itself.
+if (window !== window.top) {
+  document.body.replaceChildren();
+  throw new Error("scratchpad page loaded inside a preview");
+}
+const SPEC = /*SPEC*/null;
+const SPEC_PATH = /*SPEC_PATH*/"";
+const VIEWPORTS = ["fit", 390, 768, 1280, 1600];
+const KEY = "frontend-scratchpad:" + location.pathname;
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+function rng(seed) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hash(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+// Stable shuffle so display order never reflects the author's preference.
+function shuffle(list, seed) {
+  const out = list.slice(), next = rng(hash(seed));
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+const groups = SPEC.groups.map(g => ({ ...g, order: shuffle(g.options, (SPEC.title || "") + "/" + g.id) }));
+const byId = Object.fromEntries(groups.map(g => [g.id, g]));
+
+let state;
+try { state = JSON.parse(localStorage.getItem(KEY)) || {}; } catch { state = {}; }
+state = { sel: {}, notes: {}, none: {}, active: groups[0].id, viewport: "fit", compare: false, panel: true, ...state };
+for (const g of groups) {
+  if (!g.options.some(o => o.id === state.sel[g.id])) state.sel[g.id] = g.order[0].id;
+}
+if (!byId[state.active]) state.active = groups[0].id;
+if (!VIEWPORTS.includes(state.viewport)) state.viewport = "fit";
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+
+const option = (g, sel = state.sel) => g.options.find(o => o.id === sel[g.id]);
+const letter = (g, o) => LETTERS[g.order.indexOf(o)] || "?";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const scriptSafe = s => String(s).replace(/<\/(script)/gi, "<\\/$1");
+const fontHref = f => /^https?:/.test(f) ? f : "https://fonts.googleapis.com/css2?family=" + f.trim().replace(/ /g, "+") + "&display=swap";
+
+// Runs inside each preview document.
+function runtime() {
+  const report = message => parent.postMessage({ scratchpadError: String(message) }, "*");
+  addEventListener("error", e => report(e.message));
+  addEventListener("unhandledrejection", e => report(e.reason));
+  addEventListener("keydown", e => {
+    if (!e.target.closest("input, textarea, select, [contenteditable]")) parent.postMessage({ scratchpadKey: e.key }, "*");
+  });
+  // Relative URLs resolve against the scratchpad page, so links and forms must not navigate.
+  addEventListener("click", e => {
+    const link = e.target.closest("a[href]");
+    if (!link) return;
+    e.preventDefault();
+    const href = link.getAttribute("href");
+    const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (href.length > 1 && href.startsWith("#")) {
+      document.getElementById(decodeURIComponent(href.slice(1)))?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+    }
+  }, true);
+  addEventListener("submit", e => e.preventDefault(), true);
+  const probe = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  function color(value) {
+    probe.clearRect(0, 0, 1, 1);
+    probe.fillStyle = "#000";
+    probe.fillStyle = value;
+    probe.fillRect(0, 0, 1, 1);
+    const d = probe.getImageData(0, 0, 1, 1).data;
+    return [d[0] / 255, d[1] / 255, d[2] / 255, d[3] / 255];
+  }
+  function readVar(name) {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return raw !== "" && !isNaN(Number(raw)) ? Number(raw) : color(raw || "transparent");
+  }
+  function shader(target, frag, uniforms = []) {
+    const el = typeof target === "string" ? document.querySelector(target) : target;
+    if (!el) return report("shader target not found: " + target);
+    if (getComputedStyle(el).position === "static") el.style.position = "relative";
+    el.style.isolation = "isolate";
+    const canvas = document.createElement("canvas");
+    canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none;display:block";
+    el.prepend(canvas);
+    const gl = canvas.getContext("webgl2", { premultipliedAlpha: false });
+    if (!gl) return report("WebGL2 is not available");
+    const names = uniforms.map(n => "u_" + n.replace(/^--/, "").replace(/-/g, "_"));
+    const decl = uniforms.map((n, i) => `uniform ${typeof readVar(n) === "number" ? "float" : "vec4"} ${names[i]};`).join("\n");
+    const src = /#version/.test(frag) ? frag
+      : `#version 300 es\nprecision highp float;\nuniform float u_time;\nuniform vec2 u_resolution;\nuniform vec2 u_mouse;\n${decl}\nout vec4 fragColor;\n${frag}`;
+    const compile = (type, text) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, text);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error("shader: " + gl.getShaderInfoLog(s));
+      return s;
+    };
+    const prog = gl.createProgram();
+    try {
+      gl.attachShader(prog, compile(gl.VERTEX_SHADER, "#version 300 es\nin vec2 p;void main(){gl_Position=vec4(p,0.,1.);}"));
+      gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, src));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error("shader: " + gl.getProgramInfoLog(prog));
+    } catch (err) { return report(err.message); }
+    gl.useProgram(prog);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, "p");
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    const u = n => gl.getUniformLocation(prog, n);
+    const mouse = [0.5, 0.5];
+    addEventListener("pointermove", e => {
+      const r = el.getBoundingClientRect();
+      mouse[0] = (e.clientX - r.left) / r.width;
+      mouse[1] = 1 - (e.clientY - r.top) / r.height;
+    });
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const start = performance.now();
+    function frame(now) {
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      gl.viewport(0, 0, w, h);
+      gl.uniform1f(u("u_time"), still ? 2 : (now - start) / 1000);
+      gl.uniform2f(u("u_resolution"), w, h);
+      gl.uniform2f(u("u_mouse"), mouse[0], mouse[1]);
+      uniforms.forEach((n, i) => {
+        const v = readVar(n);
+        typeof v === "number" ? gl.uniform1f(u(names[i]), v) : gl.uniform4fv(u(names[i]), v);
+      });
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      if (!still) requestAnimationFrame(frame);
+    }
+    frame(performance.now());
+  }
+  window.scratchpad = { shader, readVar };
+}
+
+function buildDoc(sel) {
+  const opts = groups.map(g => option(g, sel));
+  const tw = SPEC.tailwind ? ' type="text/tailwindcss"' : "";
+  const vars = Object.entries(Object.assign({}, SPEC.vars, ...opts.map(o => o.vars || {})))
+    .map(([k, v]) => `${k}: ${v};`).join(" ");
+  const fonts = [...(SPEC.fonts || []), ...opts.flatMap(o => o.fonts || [])]
+    .map(f => `<link rel="stylesheet" href="${esc(fontHref(f))}">`).join("");
+  const tpl = document.createElement("template");
+  tpl.innerHTML = SPEC.html;
+  for (const o of opts) {
+    for (const [name, markup] of Object.entries(o.slots || {})) {
+      tpl.content.querySelectorAll(`[data-slot="${CSS.escape(name)}"]`).forEach(el => { el.innerHTML = markup; });
+    }
+  }
+  const holder = document.createElement("div");
+  holder.append(tpl.content);
+  const attrs = groups.map((g, i) => `data-${g.id}="${esc(opts[i].id)}"`).join(" ");
+  const shaders = opts.flatMap(o => [].concat(o.shader || []));
+  const scripts = [SPEC.js, ...opts.map(o => o.js)].filter(Boolean)
+    .map(js => `<script type="module">${scriptSafe(js)}<\/script>`).join("");
+  return `<!doctype html><html ${attrs}><head><meta charset="utf-8">`
+    + `<meta name="viewport" content="width=device-width, initial-scale=1">${fonts}`
+    + (SPEC.tailwind ? '<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"><\/script>' : "")
+    + (SPEC.head || "") + opts.map(o => o.head || "").join("")
+    + `<style${tw}>:root { ${vars} }</style><style${tw}>${SPEC.css || ""}</style>`
+    + opts.map(o => o.css ? `<style${tw}>${o.css}</style>` : "").join("")
+    + `</head><body>${holder.innerHTML}`
+    + `<script>(${runtime})();<\/script>`
+    + `<script type="module">for (const s of ${scriptSafe(JSON.stringify(shaders))}) scratchpad.shader(s.target, s.frag, s.uniforms);<\/script>`
+    + `${scripts}</body></html>`;
+}
+
+const panel = document.getElementById("panel");
+const stage = document.getElementById("stage");
+const main = document.getElementById("main");
+const grid = document.getElementById("grid");
+const errors = new Set();
+
+function renderPanel() {
+  const vp = VIEWPORTS.map(v => `<button type="button" data-vp="${v}" aria-pressed="${state.viewport === v}">${v === "fit" ? "Fit" : v}</button>`).join("");
+  panel.innerHTML = `
+    <h1>${esc(SPEC.title || "Scratchpad")}</h1>
+    <p class="path">${esc(SPEC_PATH)}</p>
+    <div class="bar">${vp}
+      <button type="button" id="compare" aria-pressed="${state.compare}">Compare (C)</button>
+      <button type="button" id="hide">Hide (P)</button>
+    </div>
+    ${groups.map(g => `
+      <section class="group${g.id === state.active ? " active" : ""}${state.none[g.id] ? " none" : ""}" data-g="${esc(g.id)}">
+        <h2><span>${esc(g.label)}</span><span class="count">${g.options.length}</span></h2>
+        <div class="opts">${g.order.map((o, i) => `
+          <button type="button" data-o="${esc(o.id)}" aria-pressed="${state.sel[g.id] === o.id}"><b>${LETTERS[i] || "?"}</b><span>${esc(o.label)}</span></button>`).join("")}
+        </div>
+        <label><input type="checkbox" data-none ${state.none[g.id] ? "checked" : ""}> None of these fit</label>
+        <textarea rows="2" data-note placeholder="Notes (optional)">${esc(state.notes[g.id] || "")}</textarea>
+      </section>`).join("")}
+    <footer>
+      <button type="button" id="copy">Copy choices</button><span id="status"></span>
+      <div id="errors"></div>
+      <details><summary>Export text</summary><textarea id="out" readonly></textarea></details>
+      <p class="keys">Left/Right: option. Up/Down: group. 1-9: pick. C: compare. V: viewport. P: panel.</p>
+    </footer>`;
+  showErrors();
+  document.getElementById("out").value = exportText();
+}
+
+function showErrors() {
+  const box = document.getElementById("errors");
+  if (box) box.textContent = [...errors].map(e => "Preview error: " + e).join("\n");
+}
+
+function exportText() {
+  const lines = [`Scratchpad choices for "${SPEC.title || "untitled"}"`, `Spec: ${SPEC_PATH}`];
+  for (const g of groups) {
+    const o = option(g);
+    if (state.none[g.id]) lines.push(`- ${g.label}: none fit`);
+    else {
+      lines.push(`- ${g.label}: ${o.id} ("${o.label}")`);
+      if (o.vars) lines.push("  vars: " + Object.entries(o.vars).map(([k, v]) => `${k}: ${v}`).join("; "));
+      if (o.fonts) lines.push("  fonts: " + o.fonts.join(", "));
+    }
+    const note = (state.notes[g.id] || "").trim();
+    if (note) lines.push("  note: " + note.replace(/\s*\n\s*/g, " "));
+  }
+  return lines.join("\n");
+}
+
+function fitFrame(frame, width, availW, availH) {
+  if (width === "fit") {
+    Object.assign(frame.style, { width: availW + "px", height: availH + "px", transform: "", left: "0px" });
+    return;
+  }
+  const s = Math.min(1, availW / width);
+  Object.assign(frame.style, {
+    width: width + "px", height: availH / s + "px", transform: `scale(${s})`, transformOrigin: "0 0",
+    left: Math.max(0, (availW - width * s) / 2) + "px",
+  });
+}
+
+let lastDoc = "";
+function renderMain() {
+  fitFrame(main, state.viewport, stage.clientWidth, stage.clientHeight);
+  const doc = buildDoc(state.sel);
+  if (doc === lastDoc) return;
+  lastDoc = doc;
+  let y = 0;
+  try { y = main.contentWindow.scrollY; } catch {}
+  main.onload = () => { try { main.contentWindow.scrollTo(0, y); } catch {} };
+  errors.clear();
+  showErrors();
+  main.srcdoc = doc;
+}
+
+function renderGrid() {
+  const g = byId[state.active];
+  const n = g.order.length;
+  const cols = n <= 2 ? n : n <= 4 ? 2 : stage.clientWidth > 1500 ? 4 : 3;
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  const cellW = (stage.clientWidth - 24 - 12 * (cols - 1)) / cols;
+  const renderW = state.viewport === "fit" ? stage.clientWidth : state.viewport;
+  const s = cellW / renderW;
+  const cellH = Math.min(stage.clientHeight * s, cellW * 1.4);
+  grid.innerHTML = "";
+  g.order.forEach((o, i) => {
+    const cell = document.createElement("div");
+    cell.className = "cell" + (state.sel[g.id] === o.id ? " on" : "");
+    cell.innerHTML = `<div class="cap"><b>${LETTERS[i] || "?"}</b><span>${esc(o.label)}</span></div><div class="view" style="height:${cellH}px"><iframe title="${esc(o.label)}"></iframe><div class="hit"></div></div>`;
+    const frame = cell.querySelector("iframe");
+    Object.assign(frame.style, { width: renderW + "px", height: cellH / s + "px", transform: `scale(${s})` });
+    frame.srcdoc = buildDoc({ ...state.sel, [g.id]: o.id });
+    cell.querySelector(".hit").onclick = () => pick(g, o);
+    grid.append(cell);
+  });
+}
+
+function render() {
+  document.body.classList.toggle("compare", state.compare);
+  document.body.classList.toggle("no-panel", !state.panel);
+  renderPanel();
+  if (state.compare) renderGrid(); else renderMain();
+  save();
+}
+
+function pick(g, o) {
+  state.sel[g.id] = o.id;
+  state.active = g.id;
+  render();
+}
+function step(delta) {
+  const g = byId[state.active];
+  const i = g.order.findIndex(o => o.id === state.sel[g.id]);
+  pick(g, g.order[(i + delta + g.order.length) % g.order.length]);
+}
+function moveGroup(delta) {
+  const i = groups.findIndex(g => g.id === state.active);
+  state.active = groups[(i + delta + groups.length) % groups.length].id;
+  render();
+}
+function key(k) {
+  const lower = k.toLowerCase();
+  if (k === "ArrowRight") step(1);
+  else if (k === "ArrowLeft") step(-1);
+  else if (k === "ArrowDown") moveGroup(1);
+  else if (k === "ArrowUp") moveGroup(-1);
+  else if (/^[1-9]$/.test(k)) {
+    const g = byId[state.active], o = g.order[Number(k) - 1];
+    if (o) pick(g, o);
+  } else if (lower === "c") { state.compare = !state.compare; render(); }
+  else if (lower === "p") { state.panel = !state.panel; render(); requestAnimationFrame(render); }
+  else if (lower === "v") {
+    state.viewport = VIEWPORTS[(VIEWPORTS.indexOf(state.viewport) + 1) % VIEWPORTS.length];
+    render();
+  } else return false;
+  return true;
+}
+
+panel.addEventListener("click", e => {
+  const t = e.target.closest("button, h2");
+  if (!t) return;
+  const section = t.closest(".group");
+  if (t.dataset.o) return pick(byId[section.dataset.g], byId[section.dataset.g].options.find(o => o.id === t.dataset.o));
+  if (t.tagName === "H2") { state.active = section.dataset.g; return render(); }
+  if (t.dataset.vp) { state.viewport = t.dataset.vp === "fit" ? "fit" : Number(t.dataset.vp); return render(); }
+  if (t.id === "compare") return key("c");
+  if (t.id === "hide") return key("p");
+  if (t.id === "copy") return copy();
+});
+panel.addEventListener("change", e => {
+  if (!e.target.matches("[data-none]")) return;
+  const id = e.target.closest(".group").dataset.g;
+  state.none[id] = e.target.checked;
+  state.active = id;
+  render();
+});
+panel.addEventListener("input", e => {
+  if (!e.target.matches("[data-note]")) return;
+  state.notes[e.target.closest(".group").dataset.g] = e.target.value;
+  document.getElementById("out").value = exportText();
+  save();
+});
+document.getElementById("show").onclick = () => key("p");
+addEventListener("keydown", e => {
+  if (e.target.closest("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (key(e.key)) e.preventDefault();
+});
+addEventListener("message", e => {
+  if (e.data?.scratchpadKey) key(e.data.scratchpadKey);
+  if (e.data?.scratchpadError && e.source === main.contentWindow) { errors.add(e.data.scratchpadError); showErrors(); }
+});
+let resizeTimer;
+addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { lastDoc = ""; render(); }, 150); });
+
+async function copy() {
+  const text = exportText();
+  const status = document.getElementById("status");
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const out = document.getElementById("out");
+    out.closest("details").open = true;
+    out.select();
+    if (!document.execCommand("copy")) { status.textContent = "Select the export text and copy it"; return; }
+  }
+  status.textContent = "Copied";
+  setTimeout(() => { status.textContent = ""; }, 1500);
+}
+
+render();
+</script>
+</body>
+</html>
