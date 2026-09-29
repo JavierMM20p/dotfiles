@@ -14,6 +14,9 @@ Git author and committer identity; do not change it to an assistant or provider.
 Before committing or submitting repository content, remove any such attribution
 you introduced.
 
+Keep commit messages short: a concise subject line, plus a brief body only when
+the reason for the change is not obvious from the subject.
+
 This rule applies to repository work independently of the conversational writing
 preferences below. Keep technical references needed to describe the actual work,
 such as API integrations, dependencies, configuration, and product documentation.

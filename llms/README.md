@@ -50,8 +50,8 @@ or output across models.
 
 In user settings, Opus 5.5 and later Claude models ignore the top-level
 `effortLevel` and read a per-model entry under `modelSettings` instead. That entry
-is managed natively in `[claude.modelSettings.claude-opus-5-5]`; keep it in step
-with `shared.reasoning_effort` when changing either.
+is managed natively in `[claude.modelSettings.claude-opus-5-5]` and set to `high`,
+so Opus 5.5 does not follow `shared.reasoning_effort`.
 
 Put additional native settings under `[codex]` or `[claude]`. Nested tables work:
 
@@ -85,7 +85,8 @@ task.
 
 | Setting | Effect |
 | --- | --- |
-| `shared.reasoning_effort = "medium"`, Opus 5.5 `effortLevel = "medium"` | Fewer thinking tokens on routine work; Anthropic's default for Opus 5.5 |
+| `shared.reasoning_effort = "medium"` | Fewer thinking tokens on routine work |
+| Opus 5.5 `effortLevel = "high"` | Opus 5.5 keeps deeper reasoning; Anthropic's default is `medium` |
 | `codex.plan_mode_reasoning_effort = "high"` | Codex plan mode keeps deeper reasoning |
 | `codex.agents.default_subagent_reasoning_effort = "medium"` | Spawned Codex agents otherwise default to `xhigh` on `gpt-6-astra` |
 | `codex.model_auto_compact_token_limit = 150000` | Compacts at 150K tokens instead of near the 272K window; requests above 100K made up 58% of measured Codex input |
