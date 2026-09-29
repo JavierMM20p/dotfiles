@@ -36,6 +36,12 @@ class LLMTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
 
+    def edit_codex(self, domain, **values):
+        path = domain.settings["codex"]
+        data = tomllib.loads(path.read_text())
+        data.update(values)
+        path.write_text(llms.dump_toml(data))
+
     def domain(self):
         return llms.Domain(self.repo)
 
@@ -54,7 +60,7 @@ class LLMTests(unittest.TestCase):
         data = tomllib.loads(codex.read_text())
         self.assertEqual(data["projects"]["/a.b/repo"]["trust_level"], "trusted")
         self.assertEqual(data["mcp_servers"]["demo"]["args"], ["a", "b"])
-        self.assertEqual(json.loads(claude.read_text())["env"], {"LOCAL_ONLY": "private"})
+        self.assertEqual(json.loads(claude.read_text())["env"]["LOCAL_ONLY"], "private")
         self.assertEqual(json.loads(claude.read_text())["attribution"], {"commit": "", "pr": "", "sessionUrl": False})
         self.assertEqual(codex.stat().st_mode & 0o777, 0o640)
         self.assertEqual(domain.differences(), [])
@@ -184,7 +190,7 @@ class LLMTests(unittest.TestCase):
 
     def test_backup_conflict_prevents_all_exports(self):
         domain = self.install()
-        self.write(domain.settings["codex"], 'model = "new-model"\nmodel_reasoning_effort = "high"\n')
+        self.edit_codex(domain, model="new-model")
         self.write(self.home / ".claude/CLAUDE.md", "different instructions")
         before = llms.snapshot(self.repo / "llms")
         with self.assertRaisesRegex(ValueError, "conflicting copies"):
@@ -193,9 +199,10 @@ class LLMTests(unittest.TestCase):
 
     def test_backup_exports_only_managed_values_and_agreed_content(self):
         domain = self.install()
-        self.write(domain.settings["codex"], 'model = "new-model"\nmodel_reasoning_effort = "medium"\nsecret = "stay local"\n')
+        self.edit_codex(domain, model="new-model", model_reasoning_effort="low", secret="stay local")
         claude = json.loads(domain.settings["claude"].read_text())
-        claude.update({"model": "opus", "effortLevel": "medium", "env": {"TOKEN": "stay local"}})
+        claude["effortLevel"] = "low"
+        claude["env"]["TOKEN"] = "stay local"
         self.write(domain.settings["claude"], json.dumps(claude))
         for _, targets in domain.content:
             for target in targets:
@@ -208,7 +215,7 @@ class LLMTests(unittest.TestCase):
         self.assertEqual(self.domain().differences(), [])
         text = (self.repo / "llms/settings.toml").read_text()
         self.assertNotIn("stay local", text)
-        self.assertIn('reasoning_effort = "medium"', text)
+        self.assertIn('reasoning_effort = "low"', text)
         self.assertIn('model = "new-model"', text)
         self.assertTrue((self.repo / "llms/skills/c4-mermaid-diagrams/helper.sh").stat().st_mode & 0o111)
 

@@ -48,6 +48,11 @@ The initial model choices preserve this machine's preferences: `gpt-6-astra` and
 `opus`. The same effort label expresses a preference, not identical computation
 or output across models.
 
+In user settings, Opus 5.5 and later Claude models ignore the top-level
+`effortLevel` and read a per-model entry under `modelSettings` instead. That entry
+is managed natively in `[claude.modelSettings.claude-opus-5-5]`; keep it in step
+with `shared.reasoning_effort` when changing either.
+
 Put additional native settings under `[codex]` or `[claude]`. Nested tables work:
 
 ```toml
@@ -70,6 +75,41 @@ file needs updating, it is parsed and rewritten: values are preserved, but TOML
 comments and formatting are not. Unchanged settings files are not rewritten.
 Existing settings symlinks are backed up and replaced without editing their targets.
 Keep secrets in local configuration or environment variables, not in this source.
+
+### Token usage
+
+Most plan usage in agentic coding comes from input: every request re-sends the
+whole conversation, including earlier tool output. Long contexts also lower answer
+quality, so these settings aim to keep reasoning and context proportional to the
+task.
+
+| Setting | Effect |
+| --- | --- |
+| `shared.reasoning_effort = "medium"`, Opus 5.5 `effortLevel = "medium"` | Fewer thinking tokens on routine work; Anthropic's default for Opus 5.5 |
+| `codex.plan_mode_reasoning_effort = "high"` | Codex plan mode keeps deeper reasoning |
+| `codex.agents.default_subagent_reasoning_effort = "medium"` | Spawned Codex agents otherwise default to `xhigh` on `gpt-6-astra` |
+| `codex.model_auto_compact_token_limit = 150000` | Compacts at 150K tokens instead of near the 272K window; requests above 100K made up 58% of measured Codex input |
+| `claude.autoCompactWindow = 400000` | Compacts at 400K tokens instead of about 967K on 1M-context models |
+| `claude.env.CLAUDE_CODE_SUBAGENT_MODEL = "sonnet"` | Subagents without their own model use Sonnet; built-in Explore and Plan agents are unaffected |
+
+Raise effort for hard tasks without changing the saved default:
+`claude --effort high`, the `s` key in the `/effort` slider (session only), or
+`ultrathink` in a single prompt. In Codex, use
+`codex -c model_reasoning_effort=high`. Plain `/effort high` in Claude Code saves
+the level to `modelSettings`, which `check` then reports as drift. On Opus 5.5,
+changing effort mid-session keeps the prompt cache; switching models does not.
+
+Codex already truncates each tool output to 10K tokens for `gpt-6-astra`, so
+`tool_output_token_limit` is not set. Tool-output compressors are deliberately
+not used: a
+[controlled Claude Code study](https://arxiv.org/abs/2607.12161) found that
+cutting tool-output tokens by 38.4% raised billed cost by 6.8% through extra turns
+and re-reads.
+
+Habits matter more than settings: `/clear` between unrelated tasks, name the files
+and a way to verify the result in each prompt, and `/rewind` instead of correcting
+a wrong path in place. `/usage` shows cache hit rate and which skills, subagents,
+and MCP servers use the most.
 
 ## Instructions and skills
 

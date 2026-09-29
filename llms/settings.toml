@@ -1,16 +1,29 @@
 # Shared preferences translated into each tool's native settings.
 [shared]
-reasoning_effort = "high"
+reasoning_effort = "medium"
 
 # Native settings: add only the keys you want this repository to manage.
 # Permissions and sandboxing are intentionally configured per tool.
 [codex]
 model = "gpt-6-astra"
+plan_mode_reasoning_effort = "high"
+model_auto_compact_token_limit = 150000
+
+[codex.agents]
+default_subagent_reasoning_effort = "medium"
 
 [claude]
 model = "opus"
+autoCompactWindow = 400000
 
 [claude.attribution]
 commit = ""
 pr = ""
 sessionUrl = false
+
+[claude.env]
+CLAUDE_CODE_SUBAGENT_MODEL = "sonnet"
+
+# Opus 5.5 and later ignore the top-level effortLevel in user settings.
+[claude.modelSettings.claude-opus-5-5]
+effortLevel = "high"
