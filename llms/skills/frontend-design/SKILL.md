@@ -43,7 +43,7 @@ For calibration, AI-generated design right now clusters around some traits:
 
 All traits are legitimate for some briefs, but they are defaults rather than choices, and they appear regardless of subject. Where the brief pins down a visual direction, follow it exactly — the brief's own words always win, including when it asks for one of these looks. Where it leaves an axis free, don't spend that freedom on one of these defaults. As with a hired human designer, there's often a careful balance between doing what you're good at and taking each project as a chance to experiment and learn.
 
-When the work adds a new page, view, panel or dialog with components the codebase does not have, or is a redesign, offer the frontend-scratchpad skill before planning, as it describes. If the user accepts, the plan below produces several distinct candidates per axis for the scratchpad instead of one, each reviewed against the brief, and the build starts from the user's choices.
+When the work adds a surface or control whose layout, placement or look the user has not specified, even one built from existing components or in a native app, or is a redesign, offer the frontend-scratchpad skill before planning, as it describes. If the user accepts, the plan below produces several distinct candidates per axis for the scratchpad instead of one, each reviewed against the brief, and the build starts from the user's choices.
 
 Work in two passes. First, brainstorm a short design plan based on the client's design brief: create a compact token system with color, type, layout, and principles.
 - Color: describe the core base palette as 4–6 named hex values.

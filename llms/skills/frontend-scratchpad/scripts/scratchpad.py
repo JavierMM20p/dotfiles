@@ -16,10 +16,21 @@ TEMPLATE = SKILL / "assets/scratchpad.html"
 SKIP_DIRS = {
     ".git", "node_modules", "dist", "build", "out", ".next", ".nuxt", ".svelte-kit", ".output",
     "coverage", "vendor", "target", ".venv", "venv", "__pycache__", ".turbo", ".cache",
+    "Pods", "DerivedData", "Carthage",
 }
 STYLE_EXT = {".css", ".scss", ".sass", ".less"}
 COMPONENT_EXT = {".tsx", ".jsx", ".vue", ".svelte", ".astro"}
-MARKUP_EXT = STYLE_EXT | COMPONENT_EXT | {".html", ".ts", ".js"}
+NATIVE_EXT = {".kt", ".swift", ".dart"}
+MARKUP_EXT = STYLE_EXT | COMPONENT_EXT | NATIVE_EXT | {".html", ".ts", ".js"}
+THEME_PATH = re.compile(r"theme|colou?r|palette|typ(e|ography)|font|shape|style|token|design", re.I)
+COMPOSABLE = re.compile(r"@Composable\s+(?:@\w+(?:\([^)]*\))?\s+)*((?:\w+\s+)*?)fun\s+(?:<[^>]*>\s*)?(?:[\w.<>, ]+\.)?(\w+)\s*\(")
+SWIFT_VIEW = re.compile(r"\b((?:(?:private|fileprivate|public|internal|final)\s+)*)(?:struct|class)\s+(\w+)\s*(?:<[^>{]*>)?\s*:[^{]*?\bView\b")
+FLUTTER_WIDGET = re.compile(r"\bclass\s+([A-Za-z]\w*)(?:<[^>]*>)?\s+extends\s+\w*Widget\b")
+THEME_CALL = re.compile(
+    r"(\w+)\s*[:=]\s*(?:const\s+)?((?:TextStyle|FontFamily|UIColor|Color|RoundedCornerShape|CutCornerShape"
+    r"|RoundedRectangle|BorderRadius\.circular|BorderRadius\.all)\()"
+)
+COLOR_SCHEME = re.compile(r"\b(lightColorScheme|darkColorScheme|ColorScheme(?:\.\w+)?)\s*\(")
 MAX_FILES = 4000
 MAX_BYTES = 400_000
 SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -35,7 +46,7 @@ def walk(root):
         dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS and not d.startswith("."))
         for name in sorted(files):
             path = Path(base, name)
-            if path.suffix in MARKUP_EXT:
+            if path.suffix in MARKUP_EXT or name == "colors.xml" or (name == "Contents.json" and base.endswith(".colorset")):
                 count += 1
                 if count > MAX_FILES:
                     return
@@ -51,18 +62,126 @@ def read(path):
         return ""
 
 
-def stack(root):
+def stack(root, swiftui=False):
+    found = []
     try:
         data = json.loads((root / "package.json").read_text())
     except (OSError, ValueError):
-        return []
+        data = {}
     deps = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
     known = [
         "next", "react", "vue", "nuxt", "svelte", "@sveltejs/kit", "astro", "solid-js", "@angular/core",
         "vite", "tailwindcss", "@tailwindcss/vite", "styled-components", "@emotion/react", "sass",
         "@radix-ui/react-slot", "@mui/material", "@chakra-ui/react", "framer-motion", "motion", "three",
     ]
-    return [f"{name} {deps[name]}" for name in known if name in deps]
+    found += [f"{name} {deps[name]}" for name in known if name in deps]
+    pubspec = read(root / "pubspec.yaml")
+    if re.search(r"sdk:\s*flutter\b", pubspec):
+        # Flutter projects also contain android/ Gradle and ios/ Xcode files; those are not the UI stack.
+        found.append("Flutter" + (" with google_fonts" if "google_fonts:" in pubspec else ""))
+        return found
+    gradle = "\n".join(read(p) for pattern in ("build.gradle*", "*/build.gradle*", "gradle/libs.versions.toml") for p in root.glob(pattern))
+    if gradle:
+        bom = re.search(r"compose-?bom\W+(\d[\d.]*)", gradle, re.I)
+        if re.search(r"compose", gradle, re.I):
+            found.append("Jetpack Compose" + (f" (BOM {bom.group(1)})" if bom else "") + (" with Material 3" if "material3" in gradle else ""))
+        else:
+            found.append("Gradle, no Compose found")
+    if (root / "Package.swift").exists() or any(root.glob("*.xcodeproj")):
+        found.append("SwiftUI" if swiftui else "Swift, no SwiftUI import found")
+    return found
+
+
+def hex_color(value):
+    """Turn 0xAARRGGBB or #AARRGGBB into CSS #RRGGBB, or #RRGGBBAA when not opaque."""
+    digits = value.lstrip("#").removeprefix("0x").removeprefix("0X").upper()
+    if len(digits) != 8:
+        return "#" + digits
+    return "#" + digits[2:] + ("" if digits[:2] == "FF" else digits[:2])
+
+
+def channel(value):
+    """Read an asset catalog color channel: "0x1B", "27" or "0.106"."""
+    value = str(value)
+    if value.lower().startswith("0x"):
+        return int(value, 16)
+    return round(float(value) * 255) if "." in value else int(value)
+
+
+def call_end(text, start):
+    depth = 0
+    for i in range(start, min(len(text), start + 3000)):
+        if text[i] == "(":
+            depth += 1
+        elif text[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+    return None
+
+
+def top_level_args(body):
+    args, depth, start = [], 0, 0
+    for i, char in enumerate(body):
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == "," and depth == 0:
+            args.append(body[start:i])
+            start = i + 1
+    return args + [body[start:]]
+
+
+def native_theme(path, text, theme, fonts):
+    """Collect colors, color scheme roles, text styles, shapes and fonts from a native theme file."""
+    clean = lambda value: " ".join(value.split())[:160]
+    if path.name == "colors.xml":
+        for name, value in re.findall(r"<color\s+name=\"([\w.]+)\"\s*>\s*([^<]+?)\s*</color>", text):
+            theme.setdefault(name, hex_color(value) if value.startswith("#") else value)
+        return
+    if path.name == "Contents.json":
+        try:
+            entries = json.loads(text).get("colors", [])
+        except ValueError:
+            return
+        for entry in entries:
+            parts = entry.get("color", {}).get("components", {})
+            dark = any(a.get("value") == "dark" for a in entry.get("appearances", []))
+            try:
+                rgb = [channel(parts.get(key, "0")) for key in ("red", "green", "blue")]
+            except ValueError:
+                continue
+            theme.setdefault(path.parent.stem + (" (dark)" if dark else ""), "#" + "".join(f"{c:02X}" for c in rgb))
+        return
+    for match in THEME_CALL.finditer(text):
+        end = call_end(text, match.end() - 1)
+        if end:
+            value = clean(text[match.start(2):end])
+            literal = re.fullmatch(r"Color\(\s*0x([0-9A-Fa-f]{6,8})[uUlL]*\s*\)", value)
+            theme.setdefault(match.group(1), hex_color(literal.group(1)) if literal else value)
+    for match in COLOR_SCHEME.finditer(text):
+        end = call_end(text, match.end() - 1)
+        for arg in top_level_args(text[match.end():end - 1] if end else ""):
+            role = re.match(r"\s*(\w+)\s*[:=]\s*(.+)", arg, re.S)
+            if role:
+                literal = re.fullmatch(r"(?:const\s+)?Color\(\s*0x([0-9A-Fa-f]{6,8})[uUlL]*\s*\)", role.group(2).strip())
+                theme.setdefault(f"{match.group(1)}.{role.group(1)}", hex_color(literal.group(1)) if literal else clean(role.group(2)))
+    fonts += re.findall(r"GoogleFont\(\s*\"([^\"]+)\"", text)
+    fonts += re.findall(r"R\.font\.(\w+)", text)
+    fonts += re.findall(r"fontFamily:\s*['\"]([^'\"]+)['\"]", text)
+    fonts += [f"google_fonts: {f}" for f in re.findall(r"GoogleFonts\.(\w+)\(", text) if f not in {"getFont", "getTextTheme"}]
+    fonts += re.findall(r"\.custom\(\s*\"([^\"]+)\"", text)
+
+
+def native_components(path, text):
+    if path.suffix == ".kt":
+        names = [name for modifiers, name in COMPOSABLE.findall(text) if "private" not in modifiers and not name.endswith("Preview")]
+    elif path.suffix == ".swift":
+        names = [name for modifiers, name in SWIFT_VIEW.findall(text) if "private" not in modifiers and not name.endswith("Previews")]
+    else:
+        names = [name for name in FLUTTER_WIDGET.findall(text) if not name.startswith("_")]
+    return list(dict.fromkeys(names))
 
 
 def prepare(args):
@@ -75,9 +194,22 @@ def prepare(args):
     (out / "project.json").write_text(json.dumps({"root": str(root)}))
 
     variables, fonts, stylesheets, components = {}, [], [], []
+    theme, theme_files, swiftui = {}, [], False
     for path in walk(root):
         rel = path.relative_to(root).as_posix()
         text = read(path)
+        if path.suffix in NATIVE_EXT or path.name in {"colors.xml", "Contents.json"}:
+            swiftui = swiftui or (path.suffix == ".swift" and "import SwiftUI" in text)
+            if path.suffix not in NATIVE_EXT or THEME_PATH.search(rel):
+                before = len(theme)
+                native_theme(path, text, theme, fonts)
+                if len(theme) > before:
+                    theme_files.append(rel)
+            if path.suffix in NATIVE_EXT:
+                names = native_components(path, text)
+                if names:
+                    components.append(f"{rel}: {', '.join(names[:10])}" + (", ..." if len(names) > 10 else ""))
+            continue
         if path.suffix in STYLE_EXT or path.suffix in {".vue", ".svelte", ".astro"}:
             found = re.findall(r"(--[\w-]+)\s*:\s*([^;{}]+);", text)
             if found and path.suffix in STYLE_EXT:
@@ -93,7 +225,7 @@ def prepare(args):
     print(f"Scratchpad directory: {out}")
     print(f"Write the spec to: {out / 'spec.json'}")
     print(f"Project root: {root}")
-    print("Stack: " + (", ".join(stack(root)) or "no package.json dependencies recognized"))
+    print("Stack: " + (", ".join(stack(root, swiftui)) or "none recognized (checked package.json, Gradle, Package.swift, Xcode, pubspec.yaml)"))
     configs = [p.name for p in root.glob("tailwind.config.*")]
     if configs:
         print("Tailwind config: " + ", ".join(configs))
@@ -102,6 +234,12 @@ def prepare(args):
         items = list(variables.items())
         print(f"Custom properties ({len(items)}, first 80):")
         for name, value in items[:80]:
+            print(f"  {name}: {value}")
+    if theme:
+        print("Native theme files: " + "; ".join(theme_files[:15]))
+        items = list(theme.items())
+        print(f"Native theme values ({len(items)}, first 120):")
+        for name, value in items[:120]:
             print(f"  {name}: {value}")
     unique_fonts = list(dict.fromkeys(fonts))
     print("Fonts: " + (" | ".join(unique_fonts[:15]) or "none found"))

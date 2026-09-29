@@ -67,6 +67,63 @@ class ScratchpadTests(unittest.TestCase):
         self.assertIn("src/components/Button.tsx", output)
         self.assertNotIn("--hidden", output)
 
+    def write(self, path, text):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+    def test_prepare_summarizes_compose_theme_and_composables(self):
+        project = self.root / "android"
+        self.write(project / "app/build.gradle.kts", "android { buildFeatures { compose = true } }\nimplementation(libs.androidx.material3)")
+        self.write(project / "gradle/libs.versions.toml", 'composeBom = "2024.09.00"')
+        self.write(project / "app/src/ui/theme/TidepoolTheme.kt", "\n".join([
+            "val Tide500 = Color(0xFF1B6CA8)",
+            "val Foam = Color(0x80FFFFFF)",
+            "private val Light = lightColorScheme(primary = Tide500, onPrimary = Color(0xFFFFFFFF))",
+            "val Title = TextStyle(fontFamily = GoogleFont(\"Inter\"), fontSize = 22.sp)",
+            "val Sheet = RoundedCornerShape(topStart = 24.dp)",
+        ]))
+        self.write(project / "app/src/ui/eq/Equalizer.kt", "\n".join([
+            "@OptIn(X::class)\n@Composable\nfun EqualizerSheet() {}",
+            "@Composable\ninternal fun RowScope.BandSlider() {}",
+            "@Composable\nprivate fun Helper() {}",
+            "@Preview @Composable\nfun EqualizerSheetPreview() {}",
+            "val Inline = Color(0xFF000000)",
+        ]))
+        output = self.run_cli("prepare", str(project))
+        for expected in [
+            "Jetpack Compose (BOM 2024.09.00) with Material 3", "Tide500: #1B6CA8", "Foam: #FFFFFF80",
+            "lightColorScheme.primary: Tide500", "lightColorScheme.onPrimary: #FFFFFF",
+            "Title: TextStyle(fontFamily = GoogleFont(\"Inter\"), fontSize = 22.sp)",
+            "Sheet: RoundedCornerShape(topStart = 24.dp)", "Fonts: Inter",
+            "app/src/ui/eq/Equalizer.kt: EqualizerSheet, BandSlider",
+        ]:
+            self.assertIn(expected, output)
+        for unexpected in ["Helper", "EqualizerSheetPreview", "Inline"]:
+            self.assertNotIn(unexpected, output)
+
+    def test_prepare_recognizes_swiftui_and_flutter(self):
+        ios = self.root / "ios"
+        (ios / "App.xcodeproj").mkdir(parents=True)
+        self.write(ios / "App/Player.swift", "import SwiftUI\nstruct PlayerView: View {}\nprivate struct Row: View {}")
+        self.write(ios / "App/Assets.xcassets/Ocean.colorset/Contents.json", json.dumps({"colors": [
+            {"color": {"components": {"red": "0x1B", "green": "108", "blue": "0.659"}}},
+        ]}))
+        output = self.run_cli("prepare", str(ios))
+        for expected in ["Stack: SwiftUI", "Ocean: #1B6CA8", "App/Player.swift: PlayerView"]:
+            self.assertIn(expected, output)
+        self.assertNotIn("Row", output)
+
+        flutter = self.root / "flutter"
+        self.write(flutter / "pubspec.yaml", "dependencies:\n  flutter:\n    sdk: flutter\n")
+        self.write(flutter / "android/build.gradle", "android {}")
+        self.write(flutter / "lib/theme/colors.dart", "class C { static const ocean = Color(0xFF1B6CA8); }")
+        self.write(flutter / "lib/eq.dart", "class EqualizerPanel extends StatelessWidget {}\nclass _Band extends StatefulWidget {}")
+        output = self.run_cli("prepare", str(flutter))
+        for expected in ["Stack: Flutter\n", "ocean: #1B6CA8", "lib/eq.dart: EqualizerPanel"]:
+            self.assertIn(expected, output)
+        self.assertNotIn("Gradle", output)
+        self.assertNotIn("_Band", output)
+
     def test_build_embeds_spec_safely(self):
         project, directory, _ = self.prepare()
         (project / "src/fonts").mkdir()
