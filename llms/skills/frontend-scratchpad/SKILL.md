@@ -41,6 +41,10 @@ Decide what to compare from the brief before thinking about how to encode it. De
 - The page has no presets and every kind of option (CSS, markup, SVG, canvas, GLSL, JS) costs about the same to write. Choose by fit, never by ease. Never drop or simplify an option because it is harder to encode.
 - Use real content from the brief and project, and show the states that carry design decisions (for example populated and empty).
 - Do not mark a recommendation or order options by preference; the page shuffles them. Labels describe the option in a few words.
+- For a new interface or substantial redesign, treat the overall aesthetic direction as separate from layout, palette, typography and key component treatments.
+- If the user first picks a theme, use it as the constraint for a refinement round and present the remaining meaningful decisions as separate groups in the same scratchpad. A theme pick does not approve every visual detail bundled into its preview.
+- Keep agreed choices fixed. Show component options in realistic context, including relevant mobile, empty and error states.
+- Skip refinement when the user accepts the complete design, delegates the remaining decisions or declines further comparison. Do not require a separate decision for every minor styling detail.
 
 ## 4. Write the spec and build
 
@@ -56,6 +60,6 @@ End the turn with the page path and: "Pick options, press Copy choices and paste
 
 ## 5. Act on the reply
 
-- Chosen options: implement them in the project's own stack and conventions, reusing the chosen options' code from `spec.json`, or for native projects translating its values into theme code. If the directory is gone, work from the values in the pasted text.
+- Chosen options: determine which decisions the reply resolves. If meaningful visual decisions remain, continue the scratchpad with those groups. Implement once the user has selected them or explicitly delegated the remaining choices.
 - Groups marked "none fit": use the notes, replace those groups' options with new, different ones, keep the other groups, and build the same directory again.
 - A free-text reply is fine; map it to option labels.
